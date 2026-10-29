@@ -1,10 +1,10 @@
-
-
-
+use std::collections::BTreeMap;
+use std::fs;
+use std::path::{Path, PathBuf};
+use std::time::{SystemTime, UNIX_EPOCH};
+use zellij_tile::prelude::*;
 
 fn pipe(&mut self, msg: PipeMessage) -> bool {
-
-
     if msg.name != "new-tab-right" || !self.permissions_granted {
         return false;
     }
