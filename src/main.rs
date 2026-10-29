@@ -74,7 +74,6 @@ impl ZellijPlugin for State {
         }
     }
 
-    fn render(&mut self, _rows: usize, _cols: usize) {
-    }
+    fn render(&mut self, _rows: usize, _cols: usize) {}
 }
 
