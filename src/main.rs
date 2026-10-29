@@ -19,10 +19,23 @@ fn pipe(&mut self, msg: PipeMessage) -> bool {
     }
 
 
+    let cwd=msg.payload.filter(|p| !p.is_empty()).or_else(||get_pane_cwd(focused_pane)).ok().map(|p|p.display().to_string());
+    let Some(new_id)=new_tab(None, cwd) else {
+        return false;
+    };
 
 
 
+    let Some(new) = get_tab_info(new_id) else {
+        return false;
+    };
 
+
+    for _ in current.position + 1..new.position {
+        run_action(actions::Action::MoveTabByTabId{id:new_id as u64, direction: Direction::Left}, BTreeMap::new(),
+        );
+    }
+    false
 
 }
 
