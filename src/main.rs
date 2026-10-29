@@ -8,9 +8,10 @@ struct State {
 
 register_plugin!(State);
 
+const OAN: &str = env!("CARGO_BIN_NAME");
+
 impl ZellijPlugin for State {
     fn load(&mut self, _configuration: BTreeMap<String, String>) {
-        eprintln!("[openat::load]");
         subscribe(&[EventType::PermissionRequestResult]);
         request_permission(&[
             PermissionType::ReadCliPipes,
@@ -20,8 +21,7 @@ impl ZellijPlugin for State {
         ]);
     }
 
-    fn pipe(&mut self, msg: PipeMessage) -> bool {
-        eprintln!("[openat::pipe]");
+    fn pipe(&mut self, mut msg: PipeMessage) -> bool {
         if msg.name != "tab-openat" || !self.permissioned {
             return false;
         };
@@ -31,55 +31,37 @@ impl ZellijPlugin for State {
             Some(s) => match s.parse() {
                 Ok(n) => n,
                 Err(_) => {
-                    eprintln!("openat bad offset to open at: {s:?}");
+                    eprintln!("{OAN} bad offset to open at: {s:?}");
                     return false;
                 }
             },
         };
 
-        eprintln!("[openat::pipe] got offset={offset:?}");
-
         let Ok((current_id, focused_pane)) = get_focused_pane_info() else {
             return false;
         };
 
-        eprintln!("[openat::pipe] got current_id={current_id:?}");
         let Some(current) = get_tab_info(current_id) else {
             return false;
         };
-        eprintln!("[openat::pipe] got current {current:?}");
 
-        // TODO which is better?
-        let cwd_two = msg
+        let cwd = msg
             .args
-            .get("cwd")
+            .remove("cwd")
             .filter(|p| !p.is_empty())
-            .cloned()
             .or_else(|| {
                 get_pane_cwd(focused_pane)
                     .ok()
                     .map(|p| p.display().to_string())
             });
 
-        eprintln!("cwd_two={cwd_two:?}");
-
-        let cwd = msg.payload.filter(|p| !p.is_empty()).or_else(|| {
-            get_pane_cwd(focused_pane)
-                .ok()
-                .map(|p| p.display().to_string())
-        });
-        dbg!(&cwd);
-
         let Some(new_id) = new_tab(None, cwd) else {
             return false;
         };
 
-        dbg!(new_id);
-
         let Some(new) = get_tab_info(new_id) else {
             return false;
         };
-        dbg!(&new);
 
         let last = new.position as isize;
         let cur = current.position as isize;
@@ -90,9 +72,11 @@ impl ZellijPlugin for State {
         }
         .clamp(0, last);
 
-        dbg!(last, cur, target);
-        for i in target..last {
-            dbg!(i);
+        // TODO - for whatever reason MoveTabByTabId
+        //  just crashes int he shim every time.
+        //  rather than try figure out why tf that is,
+        //  just using MoveTab instead.
+        for _ in target..last {
             run_action(
                 actions::Action::MoveTab {
                     direction: Direction::Left,
@@ -108,12 +92,10 @@ impl ZellijPlugin for State {
             //);
         }
 
-        dbg!("before unblock cli");
         if let PipeSource::Cli(id) = &msg.source {
             unblock_cli_pipe_input(id);
         }
 
-        dbg!("after unblock cli");
         false
     }
 
