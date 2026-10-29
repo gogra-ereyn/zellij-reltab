@@ -22,7 +22,7 @@ impl ZellijPlugin for State {
     }
 
     fn pipe(&mut self, mut msg: PipeMessage) -> bool {
-        if msg.name != "tab-openat" || !self.permissioned {
+        if msg.name != "reltab" || !self.permissioned {
             return false;
         };
 
