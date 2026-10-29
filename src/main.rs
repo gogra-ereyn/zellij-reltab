@@ -10,8 +10,10 @@ register_plugin!(State);
 
 impl ZellijPlugin for State {
     fn load(&mut self, _configuration: BTreeMap<String, String>) {
+        eprintln!("[openat::load]");
         subscribe(&[EventType::PermissionRequestResult]);
         request_permission(&[
+            PermissionType::ReadCliPipes,
             PermissionType::ReadApplicationState,
             PermissionType::ChangeApplicationState,
             PermissionType::RunActionsAsUser,
@@ -19,6 +21,7 @@ impl ZellijPlugin for State {
     }
 
     fn pipe(&mut self, msg: PipeMessage) -> bool {
+        eprintln!("[openat::pipe]");
         if msg.name != "tab-openat" || !self.permissioned {
             return false;
         };
@@ -34,14 +37,19 @@ impl ZellijPlugin for State {
             },
         };
 
+        eprintln!("[openat::pipe] got offset={offset:?}");
+
         let Ok((current_id, focused_pane)) = get_focused_pane_info() else {
             return false;
         };
 
+        eprintln!("[openat::pipe] got current_id={current_id:?}");
         let Some(current) = get_tab_info(current_id) else {
             return false;
         };
+        eprintln!("[openat::pipe] got current {current:?}");
 
+        // TODO which is better?
         let cwd_two = msg
             .args
             .get("cwd")
@@ -60,15 +68,18 @@ impl ZellijPlugin for State {
                 .ok()
                 .map(|p| p.display().to_string())
         });
-        eprintln!("cwd={cwd:?}");
+        dbg!(&cwd);
 
         let Some(new_id) = new_tab(None, cwd) else {
             return false;
         };
 
+        dbg!(new_id);
+
         let Some(new) = get_tab_info(new_id) else {
             return false;
         };
+        dbg!(&new);
 
         let last = new.position as isize;
         let cur = current.position as isize;
@@ -79,20 +90,30 @@ impl ZellijPlugin for State {
         }
         .clamp(0, last);
 
-        for _ in target..last {
+        dbg!(last, cur, target);
+        for i in target..last {
+            dbg!(i);
             run_action(
-                actions::Action::MoveTabByTabId {
-                    id: new_id as u64,
+                actions::Action::MoveTab {
                     direction: Direction::Left,
                 },
                 BTreeMap::new(),
             );
+            //run_action(
+            //    actions::Action::MoveTabByTabId {
+            //        id: new_id as u64,
+            //        direction: Direction::Left,
+            //    },
+            //    BTreeMap::new(),
+            //);
         }
 
+        dbg!("before unblock cli");
         if let PipeSource::Cli(id) = &msg.source {
             unblock_cli_pipe_input(id);
         }
 
+        dbg!("after unblock cli");
         false
     }
 
@@ -100,13 +121,10 @@ impl ZellijPlugin for State {
         let Event::PermissionRequestResult(status) = event else {
             return false;
         };
-
         if let PermissionStatus::Granted = status {
-            eprintln!("[openat]got perms brudda");
             self.permissioned = true;
             hide_self();
         } else {
-            eprintln!("[openat] no perms brudda");
             self.permissioned = false;
         };
         false
